@@ -1,3 +1,3 @@
-module github.com/kun98-liu/6824
+module 6.824
 
 go 1.18
