@@ -1,3 +1,4 @@
+make --dry-run --always-make --keep-going --print-directory
 make: Entering directory `/Users/kun98/GoProjects/src/github.com/kun98-liu/MIT6.824'
 make: Leaving directory `/Users/kun98/GoProjects/src/github.com/kun98-liu/MIT6.824'
  
