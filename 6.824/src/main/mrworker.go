@@ -10,11 +10,14 @@ package main
 // Please do not change this file.
 //
 
-import "6.824/mr"
-import "plugin"
-import "os"
-import "fmt"
-import "log"
+import (
+	"fmt"
+	"log"
+	"os"
+	"plugin"
+
+	"6.824/mr"
+)
 
 func main() {
 	if len(os.Args) != 2 {
@@ -24,6 +27,7 @@ func main() {
 
 	mapf, reducef := loadPlugin(os.Args[1])
 
+	//调用lab1中自己定义的Worker方法
 	mr.Worker(mapf, reducef)
 }
 
