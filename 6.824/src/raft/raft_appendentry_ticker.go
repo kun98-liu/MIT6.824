@@ -40,7 +40,9 @@ func (rf *Raft) sendHeartBeat(server int) {
 	ok := rf.sendAppendEntries(server, &args, &repl)
 
 	if ok {
-		if !repl.Success || args.Term < repl.Term {
+		rf.mu.Lock()
+		defer rf.mu.Unlock()
+		if args.Term < repl.Term {
 			rf.changeToFollower(repl.Term, -1)
 			rf.resetElection_Timeout()
 		}

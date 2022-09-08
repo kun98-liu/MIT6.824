@@ -31,7 +31,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
-	DPrintf("Server[term%v, %v,%v]'s RequesetVote is called", rf.currentTerm, rf.me, rf.role)
+	DPrintf("Term[%v]-Server[%v,%v]'s RequesetVote is called", args.Term, rf.me, rf.role)
 	if args.Term < rf.currentTerm {
 		reply.Term = rf.currentTerm
 		reply.VoteGranted = false

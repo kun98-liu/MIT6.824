@@ -25,8 +25,8 @@ func (rf *Raft) election_timeout_ticker() {
 		if time.Now().After(rf.election_timeout_time) && (rf.role != LEADER) {
 			DPrintf("Term[%v] - Server[%v]: ElECTION TIMEOUT -> Start election", rf.currentTerm, rf.me)
 			//start election
-			rf.changeToCandidate()
-			rf.resetElection_Timeout()
+			rf.changeToCandidate()     //term incre
+			rf.resetElection_Timeout() //new election timeout
 			rf.StartElection()
 
 		}
@@ -79,7 +79,10 @@ func (rf *Raft) CallForVote(idx int) {
 			rf.votedNum++
 
 			if rf.votedNum > len(rf.peers)/2 && rf.role == CANDIDATE {
+				DPrintf("Term[%v]-Server[%v]: NEW LEADER ELECTED!!!", rf.currentTerm, rf.me)
 				rf.changeToLeader()
+				DPrintf("Term[%v] - Server[%v] : Sent HeartBeat", rf.currentTerm, rf.me)
+				rf.HeartBeatAll()
 			}
 		}
 	}
