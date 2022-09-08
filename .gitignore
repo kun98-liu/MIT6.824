@@ -9,3 +9,4 @@ api.key
 !.vscode/launch.json
 !.vscode/extensions.json
 
+.vscode/targets.log
