@@ -14,7 +14,7 @@ func (rf *Raft) appendentry_ticker() {
 			rf.mu.Unlock()
 			continue
 		}
-		DPrintf("Term[%v] - Server[%v] : Sent HeartBeat", rf.currentTerm, rf.me)
+		DPrintf("Term[%v] - Server[%v,%v] : Sent HeartBeat", rf.currentTerm, rf.me, rf.role)
 		//ensured to be in the LEADER state
 		rf.HeartBeatAll()
 		rf.mu.Unlock()

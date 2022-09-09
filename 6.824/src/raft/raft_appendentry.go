@@ -14,7 +14,7 @@ type AppendEntriesReply struct {
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
-	DPrintf("Server[term%v,%v,%v] 's AppendEntries RPC is called", rf.currentTerm, rf.me, rf.role)
+	DPrintf("Term[%v] - Server[%v,%v] 's AppendEntries RPC is called", rf.currentTerm, rf.me, rf.role)
 	if args.Term >= rf.currentTerm {
 		rf.changeToFollower(args.Term, -1)
 		rf.resetElection_Timeout()

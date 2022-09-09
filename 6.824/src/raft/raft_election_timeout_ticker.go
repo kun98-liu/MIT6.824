@@ -79,9 +79,9 @@ func (rf *Raft) CallForVote(idx int) {
 			rf.votedNum++
 
 			if rf.votedNum > len(rf.peers)/2 && rf.role == CANDIDATE {
-				DPrintf("Term[%v]-Server[%v]: NEW LEADER ELECTED!!!", rf.currentTerm, rf.me)
+				DPrintf("Term[%v] - Server[%v,%v]: NEW LEADER ELECTED!!!", rf.currentTerm, rf.me, rf.role)
 				rf.changeToLeader()
-				DPrintf("Term[%v] - Server[%v] : Sent HeartBeat", rf.currentTerm, rf.me)
+				DPrintf("Term[%v] - Server[%v,%v] : Sent HeartBeat", rf.currentTerm, rf.me, rf.role)
 				rf.HeartBeatAll()
 			}
 		}
