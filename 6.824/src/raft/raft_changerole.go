@@ -20,4 +20,10 @@ func (rf *Raft) changeToLeader() {
 	rf.role = LEADER
 	rf.votedFor = -1
 
+	//reset nextIndex[]
+	idx := rf.getLastLogIndex() + 1
+	for i := range rf.peers {
+		rf.nextIndex[i] = idx
+	}
+
 }

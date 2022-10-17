@@ -59,6 +59,8 @@ func (rf *Raft) CallForVote(idx int) {
 
 	args.CandiateID = rf.me
 	args.Term = rf.currentTerm
+	args.LastLogIndex = rf.getLastLogIndex()
+	args.LastLogTerm = rf.getLastLogTerm()
 	DPrintf("Term[%v] - Server[%v,%v]: Sent RequesetVote -> Server[%v]", rf.currentTerm, rf.me, rf.role, idx)
 	ok := rf.sendRequestVote(idx, &args, &reply)
 
@@ -70,19 +72,21 @@ func (rf *Raft) CallForVote(idx int) {
 		if reply.Term < rf.currentTerm || args.Term != reply.Term {
 			return
 		}
+		//
 		if reply.Term > rf.currentTerm {
 			rf.changeToFollower(reply.Term, -1) //set rf back to follower
 			rf.resetElection_Timeout()
+			return
 		}
-
 		if reply.VoteGranted {
 			rf.votedNum++
 
 			if rf.votedNum > len(rf.peers)/2 && rf.role == CANDIDATE {
 				DPrintf("Term[%v] - Server[%v,%v]: NEW LEADER ELECTED!!!", rf.currentTerm, rf.me, rf.role)
 				rf.changeToLeader()
-				DPrintf("Term[%v] - Server[%v,%v] : Sent HeartBeat", rf.currentTerm, rf.me, rf.role)
-				rf.HeartBeatAll()
+				time.Sleep(10 * time.Millisecond)
+				// DPrintf("Term[%v] - Server[%v,%v] : Sent HeartBeat", rf.currentTerm, rf.me, rf.role)
+				// rf.HeartBeatAll()
 			}
 		}
 	}

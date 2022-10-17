@@ -9,8 +9,10 @@ package raft
 type RequestVoteArgs struct {
 	// Your data here (2A, 2B).
 
-	Term       int
-	CandiateID int
+	Term         int
+	CandiateID   int
+	LastLogIndex int
+	LastLogTerm  int
 }
 
 //
@@ -32,22 +34,33 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 	DPrintf("Term[%v] - Server[%v,%v]'s RequesetVote is called", args.Term, rf.me, rf.role)
+	//out-of-date rpc -> reject
 	if args.Term < rf.currentTerm {
 		reply.Term = rf.currentTerm
 		reply.VoteGranted = false
-	} else if args.Term > rf.currentTerm {
+		return
+	} else if args.Term > rf.currentTerm { //new candidate called rpc
+		//check if candidate's log is as up-to-date as the receiver
 		reply.Term = args.Term
-		rf.changeToFollower(args.Term, args.CandiateID)
-		reply.VoteGranted = true
+		if args.LastLogIndex >= rf.getLastLogIndex() && args.LastLogTerm >= rf.getLastLogTerm() {
+			rf.changeToFollower(args.Term, args.CandiateID)
+			reply.VoteGranted = true
+		} else {
+			reply.VoteGranted = false
+			rf.changeToFollower(args.Term, -1)
+		}
 		rf.resetElection_Timeout()
+		return
 	} else if args.Term == rf.currentTerm {
 		reply.Term = args.Term
-		if rf.votedFor != -1 || rf.role == CANDIDATE || rf.votedFor != args.CandiateID {
-			reply.VoteGranted = false
-		} else {
-			rf.votedFor = args.CandiateID
+		if (rf.votedFor != -1 || rf.votedFor != args.CandiateID) && args.LastLogIndex >= rf.getLastLogIndex() && args.LastLogTerm >= rf.getLastLogTerm() {
 			reply.VoteGranted = true
+			rf.votedFor = args.CandiateID
+			rf.changeToFollower(args.Term, args.CandiateID)
 			rf.resetElection_Timeout()
+		} else {
+			reply.VoteGranted = false
+
 		}
 
 	}

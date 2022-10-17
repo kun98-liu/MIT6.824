@@ -19,6 +19,7 @@ package raft
 
 import (
 	//	"bytes"
+
 	"sync"
 	"sync/atomic"
 	"time"
@@ -77,6 +78,17 @@ type Raft struct {
 	role int // state: LEADER | CANDIDATE | FOLLOWER
 
 	election_timeout_time time.Time
+
+	log []LogEntry // log entries
+
+	//volatile on leader
+	nextIndex []int
+}
+
+type LogEntry struct {
+	Term    int
+	Index   int
+	Command interface{}
 }
 
 // return currentTerm and whether this server
@@ -166,13 +178,29 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 // the leader.
 //
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
-	index := -1
-	term := -1
-	isLeader := true
-
 	// Your code here (2B).
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
 
-	return index, term, isLeader
+	if rf.killed() || rf.role != LEADER {
+		return -1, -1, false
+	}
+
+	rf.log = append(rf.log, LogEntry{rf.currentTerm, rf.getLastLogIndex() + 1, command})
+	DPrintf("Term[%v] - Server[%v,%v]: START -> NEW Log added, %v", rf.currentTerm, rf.me, rf.role, rf.log)
+	rf.persist()
+
+	//new log comes -> send appendentries rpc directly
+	rf.HeartBeatAll()
+	return rf.getLastLogIndex(), rf.currentTerm, true
+}
+
+func (rf *Raft) getLastLogIndex() int {
+	return rf.log[len(rf.log)-1].Index
+}
+
+func (rf *Raft) getLastLogTerm() int {
+	return rf.log[len(rf.log)-1].Term
 }
 
 //
@@ -219,6 +247,15 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.currentTerm = 0
 	rf.votedFor = -1
 	rf.election_timeout_time = time.Now().Add(INTIAl_ELECTION_TIMEOUT * time.Millisecond)
+
+	rf.log = make([]LogEntry, 0)
+	rf.nextIndex = make([]int, len(peers))
+	for i := range rf.peers {
+		rf.nextIndex[i] = 1
+	}
+
+	// add a dummy log
+	rf.log = append(rf.log, LogEntry{0, 0, nil})
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
