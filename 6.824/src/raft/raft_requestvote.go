@@ -38,19 +38,16 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	if args.Term < rf.currentTerm {
 		DPrintf("out of date vote request")
 		reply.Term = rf.currentTerm
-		reply.VoteGranted = false
-		return
 	} else if args.Term > rf.currentTerm { //new candidate called rpc
 		//check if candidate's log is as up-to-date as the receiver
 		reply.Term = args.Term
+		rf.changeToFollower(args.Term, -1)
 		if args.LastLogIndex >= rf.commitIndex && args.LastLogTerm >= rf.getTermByIndex(rf.commitIndex) {
-			// rf.changeToFollower(args.Term, args.CandiateID)
 			rf.votedFor = args.CandiateID
 			reply.VoteGranted = true
 			rf.resetElection_Timeout()
 		} else {
 			reply.VoteGranted = false
-			// rf.changeToFollower(args.Term, -1)
 		}
 	} else if args.Term == rf.currentTerm {
 		reply.Term = args.Term

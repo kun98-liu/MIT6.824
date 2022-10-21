@@ -58,6 +58,11 @@ func (rf *Raft) sendHeartBeat(server int) {
 		rf.mu.Lock()
 		defer rf.mu.Unlock()
 		//current leader is out of date (for some reason)
+		if args.Term < repl.Term {
+			rf.changeToFollower(repl.Term, -1)
+			return
+		}
+
 		if rf.role != LEADER {
 			return
 		}
@@ -67,11 +72,6 @@ func (rf *Raft) sendHeartBeat(server int) {
 		}
 
 		if args.PrevLogIndex != rf.nextIndex[server]-1 {
-			return
-		}
-
-		if args.Term < repl.Term {
-			rf.changeToFollower(repl.Term, -1)
 			return
 		}
 
