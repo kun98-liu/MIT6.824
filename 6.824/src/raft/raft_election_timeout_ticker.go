@@ -8,8 +8,8 @@ import (
 //initial election timeout, will be overwritten after the first Term
 const INTIAl_ELECTION_TIMEOUT = 300
 
-const RANDOM_ELECTION_TIMEOUT_MIN = 200
-const RANDOM_ELECTION_TIMEOUT_MAX = 500
+const RANDOM_ELECTION_TIMEOUT_MIN = 250
+const RANDOM_ELECTION_TIMEOUT_MAX = 400
 
 // The ticker go routine starts a new election if this peer hasn't received
 // heartsbeats recently.
@@ -23,7 +23,7 @@ func (rf *Raft) election_timeout_ticker() {
 		time.Sleep(10 * time.Millisecond)
 		rf.mu.Lock()
 		if time.Now().After(rf.election_timeout_time) && (rf.role != LEADER) {
-			DPrintf("Term[%v] - Server[%v]: ElECTION TIMEOUT -> Start election", rf.currentTerm, rf.me)
+			DPrintf("START ELEC : S[%v]  ElECTION TIMEOUT -> Start election", rf.me)
 			//start election
 			rf.changeToCandidate()     //term incre
 			rf.resetElection_Timeout() //new election timeout
@@ -61,7 +61,7 @@ func (rf *Raft) CallForVote(idx int) {
 	args.Term = rf.currentTerm
 	args.LastLogIndex = rf.getLastLogIndex()
 	args.LastLogTerm = rf.getLastLogTerm()
-	DPrintf("Term[%v] - Server[%v,%v]: Sent RequesetVote -> Server[%v]", rf.currentTerm, rf.me, rf.role, idx)
+	// DPrintf("Term[%v] - Server[%v,%v]: Sent RequesetVote -> Server[%v]", rf.currentTerm, rf.me, rf.role, idx)
 	ok := rf.sendRequestVote(idx, &args, &reply)
 
 	if ok {
@@ -75,19 +75,16 @@ func (rf *Raft) CallForVote(idx int) {
 		//
 		if reply.Term > rf.currentTerm {
 			rf.changeToFollower(reply.Term, -1) //set rf back to follower
-			rf.resetElection_Timeout()
 			return
 		}
 		if reply.VoteGranted {
 			rf.votedNum++
-
-			if rf.votedNum > len(rf.peers)/2 && rf.role == CANDIDATE {
-				DPrintf("Term[%v] - Server[%v,%v]: NEW LEADER ELECTED!!!", rf.currentTerm, rf.me, rf.role)
-				rf.changeToLeader()
-				time.Sleep(10 * time.Millisecond)
-				// DPrintf("Term[%v] - Server[%v,%v] : Sent HeartBeat", rf.currentTerm, rf.me, rf.role)
-				// rf.HeartBeatAll()
-			}
+		}
+		if rf.votedNum > len(rf.peers)/2 && rf.role == CANDIDATE {
+			DPrintf("NEW LEADER : T[%v] - S[%v] - R[%v]: NEW LEADER ELECTED!!!", rf.currentTerm, rf.me, rf.role)
+			rf.changeToLeader()
+			time.Sleep(10 * time.Millisecond)
+			rf.HeartBeatAll()
 		}
 	}
 

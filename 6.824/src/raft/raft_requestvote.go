@@ -33,36 +33,35 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
-	DPrintf("Term[%v] - Server[%v,%v]'s RequesetVote is called", args.Term, rf.me, rf.role)
+	DPrintf("T[%v] - S[%v] - R[%v]'s RequesetVote is called, args:%v", rf.currentTerm, rf.me, rf.role, args)
 	//out-of-date rpc -> reject
 	if args.Term < rf.currentTerm {
+		DPrintf("out of date vote request")
 		reply.Term = rf.currentTerm
 		reply.VoteGranted = false
 		return
 	} else if args.Term > rf.currentTerm { //new candidate called rpc
 		//check if candidate's log is as up-to-date as the receiver
 		reply.Term = args.Term
-		if args.LastLogIndex >= rf.getLastLogIndex() && args.LastLogTerm >= rf.getLastLogTerm() {
-			rf.changeToFollower(args.Term, args.CandiateID)
-			reply.VoteGranted = true
-		} else {
-			reply.VoteGranted = false
-			rf.changeToFollower(args.Term, -1)
-		}
-		rf.resetElection_Timeout()
-		return
-	} else if args.Term == rf.currentTerm {
-		reply.Term = args.Term
-		if (rf.votedFor != -1 || rf.votedFor != args.CandiateID) && args.LastLogIndex >= rf.getLastLogIndex() && args.LastLogTerm >= rf.getLastLogTerm() {
-			reply.VoteGranted = true
+		if args.LastLogIndex >= rf.commitIndex && args.LastLogTerm >= rf.getTermByIndex(rf.commitIndex) {
+			// rf.changeToFollower(args.Term, args.CandiateID)
 			rf.votedFor = args.CandiateID
-			rf.changeToFollower(args.Term, args.CandiateID)
+			reply.VoteGranted = true
 			rf.resetElection_Timeout()
 		} else {
 			reply.VoteGranted = false
-
+			// rf.changeToFollower(args.Term, -1)
 		}
-
+	} else if args.Term == rf.currentTerm {
+		reply.Term = args.Term
+		if (rf.votedFor == -1 || rf.votedFor == args.CandiateID) && args.LastLogIndex >= rf.commitIndex && args.LastLogTerm >= rf.getTermByIndex(rf.commitIndex) {
+			reply.VoteGranted = true
+			rf.votedFor = args.CandiateID
+			// rf.changeToFollower(args.Term, args.CandiateID)
+			rf.resetElection_Timeout()
+		} else {
+			reply.VoteGranted = false
+		}
 	}
 
 }

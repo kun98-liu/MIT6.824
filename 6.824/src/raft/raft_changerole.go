@@ -14,6 +14,7 @@ func (rf *Raft) changeToFollower(term int, votedFor int) {
 
 	rf.currentTerm = term
 	rf.votedFor = votedFor
+	rf.votedNum = 0
 }
 
 func (rf *Raft) changeToLeader() {
@@ -24,6 +25,8 @@ func (rf *Raft) changeToLeader() {
 	idx := rf.getLastLogIndex() + 1
 	for i := range rf.peers {
 		rf.nextIndex[i] = idx
+		rf.matchIndex[i] = 0
 	}
+	rf.votedNum = 0
 
 }

@@ -63,6 +63,7 @@ const (
 //
 type Raft struct {
 	mu        sync.Mutex          // Lock to protect shared access to this peer's state
+	cv        *sync.Cond          //Cond for CommitQueue
 	peers     []*labrpc.ClientEnd // RPC end points of all peers
 	persister *Persister          // Object to hold this peer's persisted state
 	me        int                 // this peer's index into peers[]
@@ -80,9 +81,17 @@ type Raft struct {
 	election_timeout_time time.Time
 
 	log []LogEntry // log entries
+	// append_timeout_time []time.Time
 
 	//volatile on leader
-	nextIndex []int
+	nextIndex  []int
+	matchIndex []int
+
+	//volatile on all servers
+	commitIndex int
+	lastApplied int
+
+	commitQueue []ApplyMsg //messagequeue for committing logs asyncly
 }
 
 type LogEntry struct {
@@ -99,6 +108,8 @@ func (rf *Raft) GetState() (int, bool) {
 	var isleader bool
 	// Your code here (2A).
 	//send RPC to all peers and get their terms
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
 	term = rf.currentTerm
 	isleader = rf.role == LEADER
 
@@ -187,12 +198,16 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	}
 
 	rf.log = append(rf.log, LogEntry{rf.currentTerm, rf.getLastLogIndex() + 1, command})
-	DPrintf("Term[%v] - Server[%v,%v]: START -> NEW Log added, %v", rf.currentTerm, rf.me, rf.role, rf.log)
+	DPrintf("NEWLOGADD: T[%v] - S[%v] - R[%v]: START -> NEW Log added, %v", rf.currentTerm, rf.me, rf.role, rf.log)
 	rf.persist()
 
 	//new log comes -> send appendentries rpc directly
 	rf.HeartBeatAll()
 	return rf.getLastLogIndex(), rf.currentTerm, true
+}
+
+func (rf *Raft) getFirstIndex() int {
+	return rf.log[0].Index
 }
 
 func (rf *Raft) getLastLogIndex() int {
@@ -201,6 +216,14 @@ func (rf *Raft) getLastLogIndex() int {
 
 func (rf *Raft) getLastLogTerm() int {
 	return rf.log[len(rf.log)-1].Term
+}
+
+func (rf *Raft) getTermByIndex(idx int) int {
+	return rf.log[idx-rf.getFirstIndex()].Term
+}
+
+func (rf *Raft) getCommandByIndex(idx int) interface{} {
+	return rf.log[idx-rf.getFirstIndex()].Command
 }
 
 //
@@ -237,27 +260,35 @@ func (rf *Raft) killed() bool {
 //
 func Make(peers []*labrpc.ClientEnd, me int,
 	persister *Persister, applyCh chan ApplyMsg) *Raft {
-	rf := &Raft{}
-	rf.peers = peers
-	rf.persister = persister
-	rf.me = me
-
 	// Your initialization code here (2A, 2B, 2C).
-	rf.role = FOLLOWER
-	rf.currentTerm = 0
-	rf.votedFor = -1
-	rf.election_timeout_time = time.Now().Add(INTIAl_ELECTION_TIMEOUT * time.Millisecond)
-
-	rf.log = make([]LogEntry, 0)
-	rf.nextIndex = make([]int, len(peers))
-	for i := range rf.peers {
-		rf.nextIndex[i] = 1
+	rf := &Raft{
+		peers:                 peers,
+		persister:             persister,
+		me:                    me,
+		currentTerm:           0,
+		votedFor:              -1,
+		role:                  FOLLOWER,
+		election_timeout_time: time.Now().Add(INTIAl_ELECTION_TIMEOUT * time.Millisecond),
+		log:                   make([]LogEntry, 0),
+		nextIndex:             make([]int, len(peers)),
+		matchIndex:            make([]int, len(peers)),
+		commitIndex:           0,
+		lastApplied:           0,
+		commitQueue:           make([]ApplyMsg, 0),
 	}
-
+	rf.cv = sync.NewCond(&rf.mu)
 	// add a dummy log
 	rf.log = append(rf.log, LogEntry{0, 0, nil})
 
-	// initialize from state persisted before a crash
+	//initialize nextIndex and matchIndex
+	for i := range rf.peers {
+		rf.nextIndex[i] = 1
+	}
+	for i := range rf.peers {
+		rf.matchIndex[i] = 0
+	}
+
+	// initialize from persisted state before a crash
 	rf.readPersist(persister.ReadRaftState())
 
 	// start ticker goroutine to start elections
@@ -265,5 +296,35 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	//heartbeat + append entries (only for leader)
 	go rf.appendentry_ticker()
 
+	go rf.apply(applyCh)
+
 	return rf
+}
+
+//get ApplyMsg from CommitQueue and commit it into applyCh
+func (rf *Raft) apply(applyCh chan ApplyMsg) {
+	for !rf.killed() {
+		rf.mu.Lock()
+		for len(rf.commitQueue) == 0 {
+			rf.cv.Wait()
+		}
+
+		msgs := rf.commitQueue
+		rf.commitQueue = make([]ApplyMsg, 0)
+		rf.mu.Unlock()
+
+		for _, msg := range msgs {
+			if msg.CommandValid {
+				DPrintf("APPLY_LOG: S[%d] Apply Commnd IDX%d CMD: %v", rf.me, msg.CommandIndex, msg.Command)
+			} else if msg.SnapshotValid {
+				DPrintf("APPLY_SNAPSHOT: S[%d] Apply Snapshot. LII: %d, LIT: %d, snapShot: %v", rf.me, msg.SnapshotIndex, msg.SnapshotTerm, msg.Snapshot)
+			} else {
+				DPrintf("ERROR: S[%d], unknown Command!", rf.me)
+				continue
+			}
+			// this may block
+			rf.lastApplied = msg.CommandIndex
+			applyCh <- msg
+		}
+	}
 }
