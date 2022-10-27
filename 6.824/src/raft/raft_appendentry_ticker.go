@@ -86,7 +86,9 @@ func (rf *Raft) sendHeartBeat(server int) {
 		// rpc reply success -> update leader's nextIndex[server] to the next new entry
 		if repl.Success {
 			rf.nextIndex[server] = repl.NextIndex
-			rf.matchIndex[server] = args.PrevLogIndex + len(logs)
+			rf.matchIndex[server] = rf.nextIndex[server] - 1
+
+			DPrintf("S%d update nextIndex[%d] = %d", rf.me, server, repl.NextIndex)
 
 			//update commitIndex in leader
 			matched_map := make(map[int]int)
@@ -100,22 +102,25 @@ func (rf *Raft) sendHeartBeat(server int) {
 			ok_idx := rf.commitIndex
 			old_commitIndex := rf.commitIndex
 			for k, v := range matched_map {
-				if v+1 > (len(rf.peers)-1)/2 {
+				if v+1 > len(rf.peers)/2 {
 					if k > ok_idx {
 						ok_idx = k
 					}
 				}
 			}
 			if rf.getTermByIndex(ok_idx) == rf.currentTerm {
-				rf.commitIndex = ok_idx
-				DPrintf("COMMITIDX UPDATE : T[%v] - S[%v] - R[%v] CommitIndex Update to %v", rf.currentTerm, rf.me, rf.role, rf.commitIndex)
+				if ok_idx > old_commitIndex {
+					rf.commitIndex = ok_idx
+					DPrintf("COMMITIDX UPDATE : T[%v] - S[%v] - R[%v] CommitIndex Update to %v", rf.currentTerm, rf.me, rf.role, rf.commitIndex)
+
+				}
 			}
 
 			if rf.commitIndex > old_commitIndex {
 				for i := old_commitIndex + 1; i <= rf.commitIndex; i++ {
 					rf.commitQueue = append(rf.commitQueue, ApplyMsg{
 						CommandValid: true,
-						Command:      rf.log[i].Command,
+						Command:      rf.getCommandByIndex(i),
 						CommandIndex: i,
 					})
 				}

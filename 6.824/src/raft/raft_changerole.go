@@ -7,6 +7,7 @@ func (rf *Raft) changeToCandidate() {
 	rf.currentTerm++
 	rf.votedFor = rf.me
 	rf.votedNum = 1
+	rf.persist()
 }
 
 func (rf *Raft) changeToFollower(term int, votedFor int) {
@@ -15,6 +16,8 @@ func (rf *Raft) changeToFollower(term int, votedFor int) {
 	rf.currentTerm = term
 	rf.votedFor = votedFor
 	rf.votedNum = 0
+
+	rf.persist()
 }
 
 func (rf *Raft) changeToLeader() {
@@ -28,5 +31,7 @@ func (rf *Raft) changeToLeader() {
 		rf.matchIndex[i] = 0
 	}
 	rf.votedNum = 0
+
+	// rf.persist()
 
 }
