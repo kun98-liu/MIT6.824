@@ -20,7 +20,7 @@ func (rf *Raft) election_timeout_ticker() {
 		// time.Sleep().
 
 		//check if a new election should be started by a const inteval -> 10ms
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond)
 		rf.mu.Lock()
 		if time.Now().After(rf.election_timeout_time) && (rf.role != LEADER) {
 			DPrintf("START ELEC : S[%v]  ElECTION TIMEOUT -> Start election", rf.me)
@@ -73,18 +73,31 @@ func (rf *Raft) CallForVote(idx int) {
 			return
 		}
 		//
-		if reply.Term > rf.currentTerm {
-			rf.changeToFollower(reply.Term, -1) //set rf back to follower
+		if rf.role != CANDIDATE {
 			return
 		}
+
+		if reply.Term > rf.currentTerm {
+			rf.changeToFollower(reply.Term, -1) //set rf back to follower
+			rf.resetElection_Timeout()
+			return
+		}
+
 		if reply.VoteGranted {
 			rf.votedNum++
-		}
-		if rf.votedNum > len(rf.peers)/2 && rf.role == CANDIDATE {
-			DPrintf("NEW LEADER : T[%v] - S[%v] - R[%v]: NEW LEADER ELECTED!!!", rf.currentTerm, rf.me, rf.role)
-			rf.changeToLeader()
-			time.Sleep(10 * time.Millisecond)
-			rf.HeartBeatAll()
+			if rf.votedNum > len(rf.peers)/2 && rf.role == CANDIDATE {
+				DPrintf("NEW LEADER : T[%v] - S[%v] - R[%v]: NEW LEADER ELECTED!!!", rf.currentTerm, rf.me, rf.role)
+				rf.changeToLeader()
+				for i := 0; i < len(rf.peers); i++ {
+					if i == rf.me {
+						continue
+					}
+					// Reset the Append timer
+					// to send appendEntry immediately
+					rf.ResetAppendTimer(i, true)
+				}
+
+			}
 		}
 	}
 

@@ -4,7 +4,7 @@ package raft
 
 func (rf *Raft) changeToCandidate() {
 	rf.role = CANDIDATE
-	rf.currentTerm++
+	rf.currentTerm += 1
 	rf.votedFor = rf.me
 	rf.votedNum = 1
 	rf.persist()
@@ -32,6 +32,6 @@ func (rf *Raft) changeToLeader() {
 	}
 	rf.votedNum = 0
 
-	// rf.persist()
+	rf.persist()
 
 }

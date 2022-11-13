@@ -81,9 +81,9 @@ type Raft struct {
 	role int // state: LEADER | CANDIDATE | FOLLOWER
 
 	election_timeout_time time.Time
+	append_timeout_time   []time.Time
 
 	log []LogEntry // log entries
-	// append_timeout_time []time.Time
 
 	//volatile on leader
 	nextIndex  []int
@@ -208,7 +208,12 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	rf.persist()
 
 	//new log comes -> send appendentries rpc directly
-	rf.HeartBeatAll()
+	for i := 0; i < len(rf.peers); i++ {
+		if i == rf.me {
+			continue
+		}
+		rf.ResetAppendTimer(i, true)
+	}
 	return rf.getLastLogIndex(), rf.currentTerm, true
 }
 
@@ -275,6 +280,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 		votedFor:              -1,
 		role:                  FOLLOWER,
 		election_timeout_time: time.Now().Add(INTIAl_ELECTION_TIMEOUT * time.Millisecond),
+		append_timeout_time:   make([]time.Time, len(peers)),
 		log:                   make([]LogEntry, 0),
 		nextIndex:             make([]int, len(peers)),
 		matchIndex:            make([]int, len(peers)),
@@ -296,6 +302,11 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	// initialize from persisted state before a crash
 	rf.readPersist(persister.ReadRaftState())
+	rf.commitIndex = rf.getFirstIndex()
+
+	for i := 0; i < len(peers); i++ {
+		rf.ResetAppendTimer(i, false)
+	}
 
 	// start ticker goroutine to start elections
 	go rf.election_timeout_ticker()
