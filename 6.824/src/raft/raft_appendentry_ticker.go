@@ -29,12 +29,13 @@ func (rf *Raft) appendentry_ticker() {
 
 			if rf.nextIndex[i] <= rf.getFirstIndex() {
 				//send snapshot
+				go rf.sendSnapshot(i)
 			} else {
 				//send append rpc
 
 				go rf.sendHeartBeat(i)
+				rf.ResetAppendTimer(i, false)
 			}
-			rf.ResetAppendTimer(i, false)
 		}
 		rf.mu.Unlock()
 	}
@@ -173,5 +174,41 @@ func (rf *Raft) ResetAppendTimer(server int, immediate bool) {
 	}
 
 	rf.append_timeout_time[server] = t
+
+}
+
+func (rf *Raft) sendSnapshot(server int) {
+
+	args := InstallSnapShotArgs{
+		Term:              rf.currentTerm,
+		LeaderID:          rf.me,
+		LastIncludedIndex: rf.getFirstIndex(),
+		LastIncludedTerm:  rf.getFirstTerm(),
+		Data:              rf.persister.ReadSnapshot(),
+	}
+	reply := InstallSnapShotReply{}
+
+	ok := rf.sendInstallSnapshot(server, &args, &reply)
+	if ok {
+		rf.mu.Lock()
+		defer rf.mu.Unlock()
+		//no longer as a leader
+		if reply.Term > rf.currentTerm {
+			rf.changeToFollower(reply.Term, -1)
+			rf.resetElection_Timeout()
+			return
+		}
+
+		if reply.Term < rf.currentTerm || args.Term != reply.Term {
+			return
+		}
+
+		//update nextIndex and matchIndex
+		if rf.matchIndex[server] < args.LastIncludedIndex {
+			rf.matchIndex[server] = args.LastIncludedIndex
+			rf.nextIndex[server] = args.LastIncludedIndex + 1
+		}
+
+	}
 
 }

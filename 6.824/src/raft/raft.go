@@ -196,6 +196,10 @@ func (rf *Raft) getFirstIndex() int {
 	return rf.log[0].Index
 }
 
+func (rf *Raft) getFirstTerm() int {
+	return rf.log[0].Term
+}
+
 func (rf *Raft) getLastLogIndex() int {
 	return rf.log[len(rf.log)-1].Index
 }
@@ -308,6 +312,7 @@ func (rf *Raft) apply(applyCh chan ApplyMsg) {
 		for _, msg := range msgs {
 			if msg.CommandValid {
 				DPrintf("APPLY_LOG: S[%d] Apply Commnd IDX%d CMD: %v", rf.me, msg.CommandIndex, msg.Command)
+				rf.lastApplied = msg.CommandIndex
 			} else if msg.SnapshotValid {
 				DPrintf("APPLY_SNAPSHOT: S[%d] Apply Snapshot. LII: %d, LIT: %d, snapShot: %v", rf.me, msg.SnapshotIndex, msg.SnapshotTerm, msg.Snapshot)
 			} else {
@@ -315,7 +320,6 @@ func (rf *Raft) apply(applyCh chan ApplyMsg) {
 				continue
 			}
 			// this may block
-			rf.lastApplied = msg.CommandIndex
 			applyCh <- msg
 		}
 	}
