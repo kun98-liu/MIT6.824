@@ -60,7 +60,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 			reply.ConflictTerm = conflictTerm
 			find_idx := args.PrevLogIndex
 
-			for i := args.PrevLogIndex; i > 1; i-- {
+			for i := args.PrevLogIndex; i > cur_FirstIndex; i-- {
 				if rf.getTermByIndex(i-1) != conflictTerm {
 					find_idx = i
 					break
